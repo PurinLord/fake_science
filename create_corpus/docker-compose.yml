@@ -1,0 +1,7 @@
+version: '2'
+
+services:
+   scrapy_dock:
+      image: scrapinghub/scrapinghub-stack-scrapy:1.1-py3
+      volumes:
+         - ./:/app
