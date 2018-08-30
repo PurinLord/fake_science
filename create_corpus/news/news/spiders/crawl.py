@@ -1,5 +1,6 @@
 import scrapy
 import re
+import os
 
 class QuotesSpider(scrapy.Spider):
     name = "init"
@@ -17,9 +18,10 @@ class QuotesSpider(scrapy.Spider):
         self.news = list()
 
 
-    def set_filename(self):
-        self.filename = re.search('http.*//(.*)\..*', self.current_site).group(1)
-        self.filename += '.txt'
+    def set_filename(self, current_site):
+        filename = re.search('http.*//(.*)\..*', current_site).group(1)
+        filename += '.txt'
+        return filename
 
 
     
@@ -34,8 +36,8 @@ class QuotesSpider(scrapy.Spider):
 
     def parse(self, response):
         r = response.css("a::attr(href)").extract()
-        #all_sites = r[43:407]
-        all_sites = r[100:102]; print('-- ALL --', all_sites)
+        all_sites = r[43:308]
+        #all_sites = r[48:98]; print('-- ALL --', all_sites)
         for url in all_sites:
             yield scrapy.Request(
                 url,
@@ -47,7 +49,9 @@ class QuotesSpider(scrapy.Spider):
     def get_site(self, response):
         out_site = response.xpath('//p[contains(., "Source:")]/a/text()').extract_first()
         self.current_site = out_site
-        self.set_filename()
+        self.filename = self.set_filename(self.current_site)
+        if os.path.exists(self.root+self.filename):
+            yield None
         print('-- GET --', self.current_site)
         yield scrapy.Request(
                     out_site,
@@ -73,6 +77,7 @@ class QuotesSpider(scrapy.Spider):
     
     def extract_news(self, response):
         #self.log('%s' % response.url)
+        # Buscar la alternancia de ligas contenidas y texto (imagenes)
         self.add_site_scope(response)
         text = response.xpath('//*/text()').extract()
         clean = [e.strip() for e in text if self.is_valid(e)]
@@ -87,6 +92,7 @@ class QuotesSpider(scrapy.Spider):
         text = text.strip()
         if text == '': return False
         if text[-1] != '.': return False
+        # otros signos de puntuacion
         if '{' in text: return False
         if '<' in text: return False
         return True
