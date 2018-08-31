@@ -86,7 +86,7 @@ class QuotesSpider(scrapy.Spider):
         news = response.url + '\n' + joined + '\n\n'
         print('-- NEWS --')
         #response.meta['file'].write(news)
-        f = open(self.root+request.meta['filename'], 'a')
+        f = open(self.root+response.meta['filename'], 'a')
         f.write(news)
         f.close()
         
