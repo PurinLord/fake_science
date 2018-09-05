@@ -21,13 +21,18 @@ class QuotesSpider(scrapy.Spider):
 
     
     def add_self_contained(self, response):
-        all_url = response.css("a::attr(href)").extract()
+        local_url = response.xpath('//a[starts-with(@href, "%s")]/@href' % (response.meta['current_site'])).extract()
+        relative_url = response.xpath('//a[starts-with(@href, "/")]/@href').extract()
 
-        # keep only same domain sites
-        new_url = {url for url in all_url 
-                if url.startswith(response.meta['current_site'])}
+        full_link = [
+            response.meta['current_site'][:-1] + r 
+            for r in relative_url
+            ]
+
+        local_url.extend(full_link)
+        local_url = set(local_url)
         ## remove visited
-        remaining_url = new_url - self.visited[response.meta['current_site']]
+        remaining_url = local_url - self.visited[response.meta['current_site']]
 
         response.meta['self_contained'] = remaining_url
 
@@ -36,7 +41,7 @@ class QuotesSpider(scrapy.Spider):
 
     def parse(self, response):
         r = response.css("a::attr(href)").extract()
-        all_sites = r[43:308]
+        all_sites = r[43:309]
         #all_sites = r[48:98]; print('-- ALL --', all_sites)
         for url in all_sites:
             yield scrapy.Request(
@@ -80,8 +85,11 @@ class QuotesSpider(scrapy.Spider):
     def extract_news(self, response):
         #self.log('%s' % response.url)
         # Buscar la alternancia de ligas contenidas y texto (imagenes)
+        alternating = response.xpath('//a[starts-with(@href, "%s")]/following::text()' % (response.meta['current_site'])).extract()
+        clean_alt = self.clean_text(alternating)
+
         text = response.xpath('//*/text()').extract()
-        clean = [e.strip() for e in text if self.is_valid(e)]
+        clean = self.clean_text(text)
         joined = '\n'.join(clean)
         news = response.url + '\n' + joined + '\n\n'
         print('-- NEWS --')
@@ -100,10 +108,15 @@ class QuotesSpider(scrapy.Spider):
         yield request
 
 
+    def clean_text(self, text):
+        return  [e.strip() for e in text if self.is_valid(e)]
+
+
     def is_valid(self, text):
         text = text.strip()
         if text == '': return False
         if text[-1] not in {'.', '?', '!'}: return False
+        # ]
         if '{' in text: return False
         if '<' in text: return False
         return True
