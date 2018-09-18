@@ -1,7 +1,32 @@
 version: '2'
 
 services:
+   database:
+      image: docker.elastic.co/elasticsearch/elasticsearch:${ELSVERSION}
+      environment:
+         - discovery.type=single-node
+      volumes:
+         - ${ELSPATH}:/usr/share/elasticsearch/data
+      ports:
+         - "9200:9200"
+      env_file: .env
+
+   kibana:
+      image: docker.elastic.co/kibana/kibana:${ELSVERSION}
+      environment:
+         ELASTICSEARCH_URL: http://database:9200
+      ports:
+         - "5601:5601"
+
    scrapy_dock:
-      image: scrapinghub/scrapinghub-stack-scrapy:1.1-py3
+      #image: scrapinghub/scrapinghub-stack-scrapy:1.1-py3
+      build: .
       volumes:
          - ./:/app
+      depends_on:
+         - database
+         - kibana 
+      links:
+         - database:database
+      env_file: .env
+
