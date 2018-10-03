@@ -78,8 +78,13 @@ class QuotesSpider(scrapy.Spider):
                 )
         request.meta['current_site'] = out_site
         request.meta['site_name'] = self.extract_site_name(out_site)
-        request.meta['cons'] = int(re.findall('\d+', cons_pseud[0])[0])
-        request.meta['preudo'] = int(re.findall('\d+', cons_pseud[1])[0])
+        if cons_pseud != []:
+            request.meta['cons'] = int(re.findall('\d+', cons_pseud[0])[0])
+            request.meta['preudo'] = int(re.findall('\d+', cons_pseud[1])[0])
+        else:
+            request.meta['cons'] = 1
+            request.meta['preudo'] = 1
+
         request.meta['factual'] = factual
         request.meta['notes'] = notes
         request.meta['update'] = update
