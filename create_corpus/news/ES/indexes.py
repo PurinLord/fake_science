@@ -8,9 +8,10 @@ class News(DocType):
     source = Keyword()
     url = Text()
     content = Text()
+    length = Integer()
     cons = Integer()
     preudo = Integer()
-    factual = Keyword
+    factual = Keyword()
     notes = Text()
     update = Text()
 
