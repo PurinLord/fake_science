@@ -11,6 +11,7 @@ class News(DocType):
     length = Integer()
     cons = Integer()
     preudo = Integer()
+    pseudo = Integer()
     factual = Keyword()
     notes = Text()
     update = Text()

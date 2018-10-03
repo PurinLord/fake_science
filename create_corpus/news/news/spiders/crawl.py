@@ -80,10 +80,10 @@ class QuotesSpider(scrapy.Spider):
         request.meta['site_name'] = self.extract_site_name(out_site)
         if cons_pseud != []:
             request.meta['cons'] = int(re.findall('\d+', cons_pseud[0])[0])
-            request.meta['preudo'] = int(re.findall('\d+', cons_pseud[1])[0])
+            request.meta['pseudo'] = int(re.findall('\d+', cons_pseud[1])[0])
         else:
             request.meta['cons'] = 1
-            request.meta['preudo'] = 1
+            request.meta['pseudo'] = 1
 
         request.meta['factual'] = factual
         request.meta['notes'] = notes
@@ -116,7 +116,7 @@ class QuotesSpider(scrapy.Spider):
         n.url =  response.meta['site_name']
         n.content = news
         n.cons = response.meta['cons']
-        n.preudo = response.meta['preudo']
+        n.pseudo = response.meta['pseudo']
         n.factual = response.meta['factual']
         n.notes = response.meta['notes']
         n.update = response.meta['update']
