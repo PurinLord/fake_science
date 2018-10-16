@@ -12,12 +12,11 @@ from keras.utils import to_categorical
 from keras.utils import Sequence as KerasSeq
 from sklearn.model_selection import train_test_split
 
-from data_preprocessing import make_dataset, make_label_enc
-from mlom.encoders.input.text import TokenizerWrapper
+from data_preprocessing import make_dataset, make_label_enc, TokenizerWrapper
 
 ENC_WORDS = 1500
 ENC_CHAR = 100
-CUDA = False
+CUDA = True
 
 if CUDA:
     from keras.layers import CuDNNLSTM
