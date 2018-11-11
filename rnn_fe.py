@@ -4,7 +4,7 @@ import numpy as np
 from collections import Counter
 from keras.activations import softmax
 from keras.callbacks import EarlyStopping
-from keras.layers import LSTM, Dense, Embedding, Lambda, Reshape, concatenate
+from keras.layers import LSTM, Dense, Embedding, Lambda, Reshape, concatenate, Dropout
 from keras.layers.wrappers import Bidirectional
 from keras.models import Input, Model
 from keras.optimizers import Adamax
@@ -12,7 +12,10 @@ from keras.utils import to_categorical
 from keras.utils import Sequence as KerasSeq
 from sklearn.model_selection import train_test_split
 
-from data_preprocessing import make_dataset, make_label_enc, TokenizerWrapper
+from dataset_creation import make_dataset 
+from dataset_creation import train_test_split as tts
+from data_preprocessing import make_label_enc, TokenizerWrapper
+from losses import focal
 
 ENC_WORDS = 1500
 ENC_CHAR = 100
@@ -44,42 +47,48 @@ def make_input_encoder(max_words,
     rnnf = RNN(
         individual_out,
         return_sequences=True,
+        #dropout=rnn_drop,
         return_state=False
-        #dropout=rnn_drop\
     )(input_rnn)
     rnnb = RNN(
         individual_out,
         go_backwards=True,
         return_sequences=True,
+        #dropout=rnn_drop,
         return_state=False
-        #dropout=rnn_drop
     )(input_rnn)
+
+    rnnf = Dropout(rnn_drop)(rnnf)
+    rnnb = Dropout(rnn_drop)(rnnb)
 
     joint = concatenate([embedding, rnnf, rnnb])
 
     return Model(inputs=[input_embedding, input_rnn], outputs=joint)
 
 
-def biRNN(num_memory_units, num_labels, input_encoder, cuda=False):
+def biRNN(num_memory_units, num_labels, input_encoder, rnn_drop=0.0, cuda=False):
     if cuda:
         RNN = CuDNNLSTM
     else:
         RNN = LSTM
 
     bilstm = Bidirectional(RNN(num_memory_units))(input_encoder.output)
+    bilstm = Dropout(rnn_drop)(bilstm)
     mlp = Dense(num_labels, activation='tanh')(bilstm)
     output = Lambda(softmax)(mlp)
 
     return Model(inputs=input_encoder.input, outputs=output)
 
 
-def make_model(max_words, in_len, cuda=False):
-    model = make_input_encoder(max_words, in_len, 100, cuda=cuda)
-    model = biRNN(32, 5, model, cuda=cuda)
+def make_model(max_words, in_len, dropout=0.2, cuda=False):
+    model = make_input_encoder(max_words, in_len, 100, cuda=cuda, rnn_drop=dropout)
+    model = biRNN(32, 5, model, cuda=cuda, rnn_drop=dropout)
+
+    loss = focal()
 
     model.compile(
-        optimizer=Adamax(lr=0.001),
-        loss='categorical_crossentropy',
+        optimizer=Adamax(),
+        loss=loss,
         metrics=['accuracy'])
     return model
 
@@ -162,8 +171,8 @@ if __name__ == '__main__':
     max_len = 10000
     max_words = 1500
     word_len = 25
-    epochs = 10
-    batch_size = 128
+    epochs = 1000
+    batch_size = 32
 
 
     x, y = make_dataset()
@@ -179,8 +188,8 @@ if __name__ == '__main__':
     _, input_encoder_word, input_encoder_lstm = make_dual_input(
         x, max_words, word_len)
 
-    x_train, x_test, y_train, y_test = train_test_split(
-        x, y, test_size=0.20, random_state=42, stratify=y)
+
+    x_train, y_train, x_test, y_test = tts(0.7, 0.8, seed=82, trim=5, labels=[1,5])
     x_test, x_valid, y_test, y_valid = train_test_split(
         x_test, y_test, test_size=0.50, random_state=42, stratify=y_test)
 
@@ -191,15 +200,17 @@ if __name__ == '__main__':
     seq_test = Sequence(x_test, y_test, input_encoder_word, input_encoder_lstm,
                         label_encoder, batch_size)
 
-    model = make_model(max_words, word_len, CUDA)
+    model = make_model(max_words, word_len, 0.14, CUDA)
+
 
     history = model.fit_generator(
         seq_train,
         epochs=epochs,
         validation_data=seq_valid,
         class_weight=class_weight,
-        max_queue_size=10,
+        max_queue_size=1,
         use_multiprocessing=False,
-        workers=1)
+        workers=1,
+        callbacks=[EarlyStopping(monitor='val_acc', patience=2)])
 
     print(model.evaluate_generator(seq_test))
