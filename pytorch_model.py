@@ -1,3 +1,6 @@
+#-e NVIDIA_VISIBLE_DEVICES=0
+# PYTHONIOENCODING='utf8'
+
 from fastai import *
 from fastai.text import * 
 
