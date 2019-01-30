@@ -1,6 +1,5 @@
 import scrapy
 import re
-import os
 
 from ES.indexes import News
 
@@ -9,11 +8,11 @@ class QuotesSpider(scrapy.Spider):
     name = "init"
 
     start_urls = ['https://mediabiasfactcheck.com/pro-science']
+    #start_urls = ['https://mediabiasfactcheck.com/conspiracy/']
 
     def __init__(self):
         #self.start_url = 'https://yournewswire.com'
         self.visited = dict()
-
 
     def extract_site_name(self, current_site):
         site_name = re.search(
@@ -21,13 +20,15 @@ class QuotesSpider(scrapy.Spider):
                 current_site).group(1)
         return site_name
 
-    
     def add_self_contained(self, response):
-        local_url = response.xpath('//a[contains(@href, "%s")]/@href' % (response.meta['site_name'])).extract()
-        relative_url = response.xpath('//a[starts-with(@href, "/")]/@href').extract()
+        local_url = response.xpath(
+                '//a[contains(@href, "%s")]/@href' % (
+                    response.meta['site_name'])).extract()
+        relative_url = response.xpath(
+                '//a[starts-with(@href, "/")]/@href').extract()
 
         full_link = [
-            response.meta['current_site'][:-1] + r 
+            response.meta['current_site'][:-1] + r
             for r in relative_url
             ]
 
@@ -40,7 +41,6 @@ class QuotesSpider(scrapy.Spider):
 
         #missing = self.self_contained.difference(set(self.visited))
 
-
     def parse(self, response):
         r = response.css("a::attr(href)").extract()
         all_sites = r[43:309]
@@ -52,22 +52,25 @@ class QuotesSpider(scrapy.Spider):
                 callback=self.get_site
             )
 
-
-
     def get_site(self, response):
-        out_site = response.xpath('//p[contains(., "Source:")]/a/text()').extract_first()
+        out_site = response.xpath(
+                '//p[contains(., "Source:")]/a/text()').extract_first()
 
         # extrae valor de conspiracy y pseudoscience
         # ['con1', 'pseudo5']
         cons_pseud = response.xpath('//img/@data-image-title').extract()
 
         # Factual reporting extract
-        factual = response.xpath('//p[contains(., "Factual Reporting")]/span/strong/text()').extract_first()
+        factual = response.xpath(
+                '//p[contains(., "Factual Reporting")]/span/strong/text()'
+                ).extract_first()
 
         # Notes
-        notes = response.xpath('//p[contains(., "Notes:")]/text()').extract_first()
+        notes = response.xpath(
+                '//p[contains(., "Notes:")]/text()').extract_first()
         # Update
-        update = response.xpath('//p[contains(., "UPDATE:")]/text()').extract_first()
+        update = response.xpath(
+                '//p[contains(., "UPDATE:")]/text()').extract_first()
 
         print('-- GET --', out_site)
         self.visited[out_site] = set()
@@ -90,7 +93,6 @@ class QuotesSpider(scrapy.Spider):
         request.meta['update'] = update
         yield request
 
-
     def crawl_site(self, response):
         self.add_self_contained(response)
 
@@ -103,7 +105,7 @@ class QuotesSpider(scrapy.Spider):
             )
             request.meta.update(response.meta)
             yield request
-    
+
     def extract_news(self, response):
 
         text = response.xpath('//*/text()').extract()
@@ -112,8 +114,8 @@ class QuotesSpider(scrapy.Spider):
         print('-- NEWS --')
 
         n = News()
-        n.source = response.meta['current_site'] 
-        n.url =  response.meta['site_name']
+        n.source = response.meta['current_site']
+        n.url = response.meta['site_name']
         n.content = news
         n.length = len(news)
         n.cons = response.meta['cons']
@@ -131,10 +133,8 @@ class QuotesSpider(scrapy.Spider):
         request.meta.update(response.meta)
         yield request
 
-
     def clean_text(self, text):
-        return  [e.strip() for e in text if self.is_valid(e)]
-
+        return [e.strip() for e in text if self.is_valid(e)]
 
     def is_valid(self, text):
         text = text.strip()
@@ -144,3 +144,4 @@ class QuotesSpider(scrapy.Spider):
         if '{' in text: return False
         if '<' in text: return False
         return True
+
