@@ -8,7 +8,7 @@ from ES.indexes import News
 class QuotesSpider(scrapy.Spider):
     name = "init"
 
-    start_urls = ['https://mediabiasfactcheck.com/conspiracy/']
+    start_urls = ['https://mediabiasfactcheck.com/pro-science']
 
     def __init__(self):
         #self.start_url = 'https://yournewswire.com'
@@ -115,6 +115,7 @@ class QuotesSpider(scrapy.Spider):
         n.source = response.meta['current_site'] 
         n.url =  response.meta['site_name']
         n.content = news
+        n.length = len(news)
         n.cons = response.meta['cons']
         n.pseudo = response.meta['pseudo']
         n.factual = response.meta['factual']
