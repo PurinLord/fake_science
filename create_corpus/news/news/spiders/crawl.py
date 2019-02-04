@@ -7,8 +7,8 @@ from ES.indexes import News
 class QuotesSpider(scrapy.Spider):
     name = "init"
 
-    start_urls = ['https://mediabiasfactcheck.com/pro-science']
-    #start_urls = ['https://mediabiasfactcheck.com/conspiracy/']
+    #start_urls = ['https://mediabiasfactcheck.com/pro-science']
+    start_urls = ['https://mediabiasfactcheck.com/conspiracy/']
 
     def __init__(self):
         #self.start_url = 'https://yournewswire.com'
@@ -28,13 +28,13 @@ class QuotesSpider(scrapy.Spider):
                 '//a[starts-with(@href, "/")]/@href').extract()
 
         full_link = [
-            response.meta['current_site'][:-1] + r
+            response.meta['current_site'].strip('/') + r
             for r in relative_url
             ]
 
         local_url.extend(full_link)
         local_url = set(local_url)
-        ## remove visited
+        # remove visited
         remaining_url = local_url - self.visited[response.meta['current_site']]
 
         response.meta['self_contained'] = remaining_url
@@ -43,7 +43,7 @@ class QuotesSpider(scrapy.Spider):
 
     def parse(self, response):
         r = response.css("a::attr(href)").extract()
-        all_sites = r[43:309]
+        all_sites = r[42:323]
         #all_sites = r[48:98]; print('-- ALL --', all_sites)
 
         for url in all_sites:
@@ -72,7 +72,7 @@ class QuotesSpider(scrapy.Spider):
         update = response.xpath(
                 '//p[contains(., "UPDATE:")]/text()').extract_first()
 
-        print('-- GET --', out_site)
+        # print('-- GET --', out_site)
         self.visited[out_site] = set()
 
         request = scrapy.Request(
@@ -97,7 +97,7 @@ class QuotesSpider(scrapy.Spider):
         self.add_self_contained(response)
 
         for url in response.meta['self_contained']:
-            print('-- CRAWL --', url)
+            # print('-- CRAWL --', url)
             self.visited[response.meta['current_site']].add(url)
             request = scrapy.Request(
                 url,
@@ -111,11 +111,11 @@ class QuotesSpider(scrapy.Spider):
         text = response.xpath('//*/text()').extract()
         clean = self.clean_text(text)
         news = '\n'.join(clean)
-        print('-- NEWS --')
+        # print('-- NEWS --')
 
         n = News()
         n.source = response.meta['current_site']
-        n.url = response.meta['site_name']
+        n.url = response.url
         n.content = news
         n.length = len(news)
         n.cons = response.meta['cons']
