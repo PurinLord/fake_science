@@ -7,43 +7,17 @@ from ES.indexes import News
 class QuotesSpider(scrapy.Spider):
     name = "init"
 
-    #start_urls = ['https://mediabiasfactcheck.com/pro-science']
-    start_urls = ['https://mediabiasfactcheck.com/conspiracy/']
+    start_urls = ['https://mediabiasfactcheck.com/pro-science']
+    #start_urls = ['https://mediabiasfactcheck.com/conspiracy/']
 
     def __init__(self):
         #self.start_url = 'https://yournewswire.com'
         self.visited = dict()
 
-    def extract_site_name(self, current_site):
-        site_name = re.search(
-                'http.*//(?:www\.|)(.*)\..*', 
-                current_site).group(1)
-        return site_name
-
-    def add_self_contained(self, response):
-        local_url = response.xpath(
-                '//a[contains(@href, "%s")]/@href' % (
-                    response.meta['site_name'])).extract()
-        relative_url = response.xpath(
-                '//a[starts-with(@href, "/")]/@href').extract()
-
-        full_link = [
-            response.meta['current_site'].strip('/') + r
-            for r in relative_url
-            ]
-
-        local_url.extend(full_link)
-        local_url = set(local_url)
-        # remove visited
-        remaining_url = local_url - self.visited[response.meta['current_site']]
-
-        response.meta['self_contained'] = remaining_url
-
-        #missing = self.self_contained.difference(set(self.visited))
 
     def parse(self, response):
         r = response.css("a::attr(href)").extract()
-        all_sites = r[42:323]
+        all_sites = r[42:180]
         #all_sites = r[48:98]; print('-- ALL --', all_sites)
 
         for url in all_sites:
@@ -133,6 +107,32 @@ class QuotesSpider(scrapy.Spider):
         request.meta.update(response.meta)
         yield request
 
+    def extract_site_name(self, current_site):
+        site_name = re.search(
+                'http.*//(?:www\.|)(.*)\..*', 
+                current_site).group(1)
+        return site_name
+
+    def add_self_contained(self, response):
+        local_url = response.xpath(
+                '//a[contains(@href, "%s")]/@href' % (
+                    response.meta['site_name'])).extract()
+        relative_url = response.xpath(
+                '//a[starts-with(@href, "/")]/@href').extract()
+
+        full_link = [
+            response.meta['current_site'].strip('/') + r
+            for r in relative_url
+            ]
+
+        local_url.extend(full_link)
+        local_url = set(local_url)
+        # remove visited
+        remaining_url = local_url - self.visited[response.meta['current_site']]
+
+        response.meta['self_contained'] = remaining_url
+
+        #missing = self.self_contained.difference(set(self.visited))
     def clean_text(self, text):
         return [e.strip() for e in text if self.is_valid(e)]
 
