@@ -2,7 +2,7 @@ import scrapy
 import re
 import csv
 
-from ES.indexes import News
+from ES.indexes import NewsTest
 
 
 class QuotesSpider(scrapy.Spider):
@@ -28,7 +28,7 @@ class QuotesSpider(scrapy.Spider):
     def parse(self, response):
         out_site = response.url
 
-        left_rigth = source_data[out_site]["bias"]
+        bias = source_data[out_site]["bias"]
 
         # Factual reporting extract
         factual = source_data[out_site]["fact"]
@@ -49,7 +49,7 @@ class QuotesSpider(scrapy.Spider):
                 )
         request.meta['current_site'] = out_site
         request.meta['site_name'] = source_data[out_site]["source_url_processed"]
-        request.meta['left_rigth'] = left_rigth
+        request.meta['bias'] = bias
         request.meta['factual'] = factual
         request.meta['notes'] = notes
         request.meta['update'] = update
@@ -75,13 +75,12 @@ class QuotesSpider(scrapy.Spider):
         news = '\n'.join(clean)
         # print('-- NEWS --')
 
-        n = News()
+        n = NewsTest()
         n.source = response.meta['current_site']
         n.url = response.url
         n.content = news
         n.length = len(news)
-        n.cons = response.meta['cons']
-        n.pseudo = response.meta['pseudo']
+        n.cons = response.meta['bias']
         n.factual = response.meta['factual']
         n.notes = response.meta['notes']
         n.update = response.meta['update']
