@@ -4,22 +4,23 @@ import csv
 
 from ES.indexes import NewsTest
 
+r = csv.reader(open("news_base.csv", "r"))
+next(r)
+source_data = {
+        el[2].split("/")[-2]: {
+                "source_url": el[0],
+                "source_url_processed": el[1],
+                "URL": el[2],
+                "fact": el[3],
+                "bias": el[4]
+                }
+            for el in r}
+start_urls_list = [source_data[k]["URL"] for k in source_data]
 
 class QuotesSpider(scrapy.Spider):
     name = "factual"
 
-    r = csv.reader(open("news_base.csv", "r"))
-    next(r)
-    source_data = {
-                el[2]: {
-                    "source_url": el[0],
-                    "source_url_processed": el[1],
-                    "URL": el[2],
-                    "fact": el[3],
-                    "bias": el[4]
-                    }
-                for el in r}
-    start_urls = list(source_data.keys())
+    start_urls = start_urls_list
 
     def __init__(self):
         #self.start_url = 'https://yournewswire.com'
@@ -27,11 +28,12 @@ class QuotesSpider(scrapy.Spider):
 
     def parse(self, response):
         out_site = response.url
+        short_name = out_site.split("/")[-2]
 
-        bias = source_data[out_site]["bias"]
+        bias = source_data[short_name]["bias"]
 
         # Factual reporting extract
-        factual = source_data[out_site]["fact"]
+        factual = source_data[short_name]["fact"]
 
         # Notes
         notes = response.xpath(
@@ -48,7 +50,7 @@ class QuotesSpider(scrapy.Spider):
                     callback=self.crawl_site
                 )
         request.meta['current_site'] = out_site
-        request.meta['site_name'] = source_data[out_site]["source_url_processed"]
+        request.meta['site_name'] = source_data[short_name]["source_url_processed"]
         request.meta['bias'] = bias
         request.meta['factual'] = factual
         request.meta['notes'] = notes
