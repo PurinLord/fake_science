@@ -1,5 +1,7 @@
 import scrapy
 import re
+from urllib import parse
+import elasticsearch
 
 from ES.indexes import News
 
@@ -7,20 +9,24 @@ from ES.indexes import News
 class QuotesSpider(scrapy.Spider):
     name = "init"
 
-    start_urls = ['https://mediabiasfactcheck.com/pro-science']
-    #start_urls = ['https://mediabiasfactcheck.com/conspiracy/']
+    #start_urls = ['https://mediabiasfactcheck.com/pro-science']
+    start_urls = ['https://mediabiasfactcheck.com/conspiracy/']
 
     def __init__(self):
         #self.start_url = 'https://yournewswire.com'
         self.visited = dict()
+        self.index_client = elasticsearch.client.IndicesClient(
+                client=elasticsearch.Elasticsearch(hosts="database:9200"))
 
 
     def parse(self, response):
         r = response.css("a::attr(href)").extract()
-        all_sites = r[42:180]
+        all_sites = r[41:329]
         #all_sites = r[48:98]; print('-- ALL --', all_sites)
 
         for url in all_sites:
+            if "real-jew-news" in url:
+                continue
             yield scrapy.Request(
                 url,
                 callback=self.get_site
@@ -87,17 +93,7 @@ class QuotesSpider(scrapy.Spider):
         news = '\n'.join(clean)
         # print('-- NEWS --')
 
-        n = News()
-        n.source = response.meta['current_site']
-        n.url = response.url
-        n.content = news
-        n.length = len(news)
-        n.cons = response.meta['cons']
-        n.pseudo = response.meta['pseudo']
-        n.factual = response.meta['factual']
-        n.notes = response.meta['notes']
-        n.update = response.meta['update']
-        n.save()
+        self.save_news(news, response)
 
         # Recursive call
         request = scrapy.Request(
@@ -106,6 +102,24 @@ class QuotesSpider(scrapy.Spider):
                 )
         request.meta.update(response.meta)
         yield request
+
+    def save_news(self, news, response):
+        try:
+            n = News()
+            n.source = response.meta['current_site']
+            n.url = response.url
+            n.content = news
+            n.length = len(news)
+            n.cons = response.meta['cons']
+            n.pseudo = response.meta['pseudo']
+            n.factual = response.meta['factual']
+            n.notes = response.meta['notes']
+            n.update = response.meta['update']
+            n.save()
+        except:
+            data = '{"index.blocks.read_only_allow_delete": null}'
+            self.index_client.put_settings(index="news_3", body=data)
+            self.save_news(news, response)
 
     def extract_site_name(self, current_site):
         site_name = re.search(
@@ -117,18 +131,19 @@ class QuotesSpider(scrapy.Spider):
         local_url = response.xpath(
                 '//a[contains(@href, "%s")]/@href' % (
                     response.meta['site_name'])).extract()
+
         relative_url = response.xpath(
                 '//a[starts-with(@href, "/")]/@href').extract()
+        if isinstance(relative_url, list):
+            local_url.extend(relative_url)
 
-        full_link = [
-            response.meta['current_site'].strip('/') + r
-            for r in relative_url
-            ]
+        full_link = {
+            parse.urljoin(response.meta['current_site'], r)
+            for r in local_url
+            }
 
-        local_url.extend(full_link)
-        local_url = set(local_url)
         # remove visited
-        remaining_url = local_url - self.visited[response.meta['current_site']]
+        remaining_url = full_link - self.visited[response.meta['current_site']]
 
         response.meta['self_contained'] = remaining_url
 
