@@ -17,11 +17,11 @@ class News(DocType):
     update = Text()
 
     class Index:
-        name = 'news_2'
+        name = 'news_3'
 
     def save(self, ** kwargs):
         self.created_at = datetime.now()
-        return super().save(** kwargs)
+        return DocType.save(self, ** kwargs)
 
 
 class NewsTest(DocType):
@@ -35,8 +35,8 @@ class NewsTest(DocType):
     update = Text()
 
     class Index:
-        name = 'news_test'
+        name = 'news_test_2'
 
     def save(self, ** kwargs):
         self.created_at = datetime.now()
-        return super().save(** kwargs)
+        return DocType.save(self, ** kwargs)
