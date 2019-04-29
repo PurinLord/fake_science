@@ -27,8 +27,9 @@ class QuotesSpider(scrapy.Spider):
         self.visited = dict()
 
     def parse(self, response):
-        out_site = response.url
-        short_name = out_site.split("/")[-2]
+        short_name = response.url.split("/")[-2]
+
+        out_site = source_data[short_name]["source_url"]
 
         bias = source_data[short_name]["bias"]
 
@@ -50,7 +51,7 @@ class QuotesSpider(scrapy.Spider):
                     callback=self.crawl_site
                 )
         request.meta['current_site'] = out_site
-        request.meta['site_name'] = source_data[short_name]["source_url_processed"]
+        request.meta['site_name'] = self.extract_site_name(out_site)
         request.meta['bias'] = bias
         request.meta['factual'] = factual
         request.meta['notes'] = notes
@@ -82,7 +83,7 @@ class QuotesSpider(scrapy.Spider):
         n.url = response.url
         n.content = news
         n.length = len(news)
-        n.cons = response.meta['bias']
+        n.bias = response.meta['bias']
         n.factual = response.meta['factual']
         n.notes = response.meta['notes']
         n.update = response.meta['update']

@@ -9,8 +9,8 @@ from ES.indexes import News
 class QuotesSpider(scrapy.Spider):
     name = "init"
 
-    #start_urls = ['https://mediabiasfactcheck.com/pro-science']
-    start_urls = ['https://mediabiasfactcheck.com/conspiracy/']
+    start_urls = ['https://mediabiasfactcheck.com/pro-science']
+    #start_urls = ['https://mediabiasfactcheck.com/conspiracy/']
 
     def __init__(self):
         #self.start_url = 'https://yournewswire.com'
@@ -21,8 +21,8 @@ class QuotesSpider(scrapy.Spider):
 
     def parse(self, response):
         r = response.css("a::attr(href)").extract()
-        all_sites = r[41:329]
-        #all_sites = r[48:98]; print('-- ALL --', all_sites)
+        #all_sites = r[329:330]
+        all_sites = r[41:184]
 
         for url in all_sites:
             if "real-jew-news" in url:
