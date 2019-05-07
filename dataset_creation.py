@@ -10,69 +10,7 @@ from elasticsearch_dsl.connections import connections
 connections.create_connection(hosts='localhost:9200')
 
 
-def make_dataset(min_len=500, max_len=10000, label='cons'):
-    gen = News().search().filter('range', length={'gte': min_len, 'lte': max_len}).scan()
-
-    x, y = generate_dataset(gen, label)
-    
-    size = len(y)
-    X = np.zeros(size, dtype='<U'+str(max_len))
-    Y = np.zeros(size, dtype='int')
-    X = x
-    Y = y
-
-    return X, Y
-
-
-def generate_dataset(gen, label_key, trim=0, encode=False):
-    x = list()
-    y = list()
-    for n in gen:
-        content = n.content
-        #content = trim_text(content, trim)
-        if encode:
-            content = content.encode(encode, 'ignore')
-        x.append(content)
-        y.append(n[label_key])
-    return np.array(x), np.array(y)
-
-
-def trim_text(text, trim):
-    print('trim not working')
-    split = text.split('\n')
-    if trim > 0:
-        return ' '.join(split[trim:-trim])
-    else:
-        return ' '.join(split)
-
-def get_urls(search, num=1000, min_doc_count= 10):
-    agg_name = 'purin'
-    search.aggs.bucket(agg_name, 'terms', field='source', size=num)
-    result = search.execute().to_dict()
-    aggs = [
-            {'url': a['key'], 'size': a['doc_count']} for a in 
-            result['aggregations'][agg_name]['buckets']
-            if a['doc_count'] >= min_doc_count
-            ]
-    return aggs
-
-
-def smart_subset_select(urls, min_per, max_per, seed):
-    total = sum([el['size'] for el in urls])
-    min_total = int(total * min_per)
-    max_total = int(total * max_per)
-    gen = subset_sum(urls, min_total, max_total)
-    while seed >= 0:
-        subset = next(gen)
-        seed -= 1
-    train = [n['url'] for n in subset]
-    all_names = [n['url'] for n in urls]
-    test = list(set(all_names) - set(train))
-    return train, test
-
-
 def site_count(labels=range(1,6), min_len=500, max_len=10000, min_doc_count=10, label='cons'):
-
     out_dict = {"data": dict(),
             "charac": {
                 "min_len": min_len,
@@ -102,6 +40,7 @@ def site_count(labels=range(1,6), min_len=500, max_len=10000, min_doc_count=10, 
 
     return out_dict
 
+
 def cross_validaton_split(site_count_dict, split_size=5, site_threshold=1):
     site_data = site_count_dict["data"]
     min_len = site_count_dict["charac"]["min_len"]
@@ -130,9 +69,8 @@ def cross_validaton_split(site_count_dict, split_size=5, site_threshold=1):
         split[label][split_size-1] = urls
     return split
 
-    
-def train_test_split(site_count_dict, min_per, max_per, seed=0, trim = 0, encode=None):
 
+def train_test_split(site_count_dict, min_per, max_per, seed=0, trim = 0, encode=None):
     site_data = site_count_dict["data"]
     min_len = site_count_dict["charac"]["min_len"]
     max_len = site_count_dict["charac"]["max_len"]
@@ -157,6 +95,45 @@ def train_test_split(site_count_dict, min_per, max_per, seed=0, trim = 0, encode
     x_test, y_test = generate_dataset(test_gen, using_label, trim, encode)
 
     return x_train, y_train, x_test, y_test
+
+
+def get_urls(search, num=1000, min_doc_count= 10):
+    agg_name = 'purin'
+    search.aggs.bucket(agg_name, 'terms', field='source', size=num)
+    result = search.execute().to_dict()
+    aggs = [
+            {'url': a['key'], 'size': a['doc_count']} for a in 
+            result['aggregations'][agg_name]['buckets']
+            if a['doc_count'] >= min_doc_count
+            ]
+    return aggs
+
+
+def generate_dataset(gen, label_key, trim=0, encode=False):
+    x = list()
+    y = list()
+    for n in gen:
+        content = n.content
+        #content = trim_text(content, trim)
+        if encode:
+            content = content.encode(encode, 'ignore')
+        x.append(content)
+        y.append(n[label_key])
+    return np.array(x), np.array(y)
+
+
+def smart_subset_select(urls, min_per, max_per, seed):
+    total = sum([el['size'] for el in urls])
+    min_total = int(total * min_per)
+    max_total = int(total * max_per)
+    gen = subset_sum(urls, min_total, max_total)
+    while seed >= 0:
+        subset = next(gen)
+        seed -= 1
+    train = [n['url'] for n in subset]
+    all_names = [n['url'] for n in urls]
+    test = list(set(all_names) - set(train))
+    return train, test
 
 
 # https://stackoverflow.com/questions/4632322/finding-all-possible-combinations-of-numbers-to-reach-a-given-sum
@@ -204,4 +181,13 @@ def standarize(x_train, y_train, x_test, y_test, labels, save_path):
     df_val.to_csv(save_path + '/test.csv', header=False, index=False)
 
     #(save_path/'classes.txt').open('w', encoding='utf-8').writelines(f'{o}\n' for o in labels)
+
+
+def trim_text(text, trim):
+    print('trim not working')
+    split = text.split('\n')
+    if trim > 0:
+        return ' '.join(split[trim:-trim])
+    else:
+        return ' '.join(split)
 
