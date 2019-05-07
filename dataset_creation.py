@@ -147,6 +147,31 @@ def subset_sum(numbers, target_min, target_max, partial=[], partial_sum=0):
         yield from subset_sum(remaining, target_min, target_max, partial + [n], partial_sum + n['size'])
 
 
+def split_gens(split, min_len, max_len):
+    num_splir = len(list(split.values())[0].keys())
+    urls_split = defaultdict(list)
+    for label in split:
+        for s in split[label]:
+            urls_split[s].extend([l["url"] for l in split[label][s]])
+
+    gen_split = dict()
+    for label in urls_split:
+        gen_split[label] =  News().search().filter('range',
+                length={'gte': min_len, 'lte': max_len}).filter('terms',
+                        source=urls_split[label]).scan()
+    return gen_split
+
+
+def save_to_csv(gens, base_name):
+    for split in gens:
+        f = open("{}{}.csv".format(base_name, split), "w", newline="")
+        csvwriter = csv.writer(f)
+        for n in tqdm(gens[split]):
+            csvwriter.writerow([
+            n.factual.replace("\xa0", " "),
+            n.content.replace("\n", " __new__linw__ ")])
+
+
 def make_df(x, y, x_name='text', y_name='label'):
     from pandas import DataFrame
     d = {y_name: list(y), x_name: list(x)}
