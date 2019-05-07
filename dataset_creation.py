@@ -1,23 +1,19 @@
 import numpy as np
-import itertools
+from collections import defaultdict
+from random import shuffle
+import copy
 
 import pandas as pd
-from create_corpus.news.ES.indexes import News
+from create_corpus.news.ES.indexes import NewsTest as News
 from elasticsearch_dsl.connections import connections
 
-ELASTICSEARCH = connections.configure(
-    default={
-        'hosts': 'localhost:9200',
-        'timeout': 60
-    },
-    sniff_on_start=True
-)
+connections.create_connection(hosts='localhost:9200')
 
 
-def make_dataset(min_len=500, max_len=10000, cons_pseu='cons'):
+def make_dataset(min_len=500, max_len=10000, label='cons'):
     gen = News().search().filter('range', length={'gte': min_len, 'lte': max_len}).scan()
 
-    x, y = generate_dataset(gen, cons_pseu)
+    x, y = generate_dataset(gen, label)
     
     size = len(y)
     X = np.zeros(size, dtype='<U'+str(max_len))
@@ -33,8 +29,7 @@ def generate_dataset(gen, label_key, trim=0, encode=False):
     y = list()
     for n in gen:
         content = n.content
-        if trim > 0:
-            content = trim_text(content, trim)
+        #content = trim_text(content, trim)
         if encode:
             content = content.encode(encode, 'ignore')
         x.append(content)
@@ -43,40 +38,23 @@ def generate_dataset(gen, label_key, trim=0, encode=False):
 
 
 def trim_text(text, trim):
+    print('trim not working')
     split = text.split('\n')
-    return ' '.join(split[trim:-trim])
+    if trim > 0:
+        return ' '.join(split[trim:-trim])
+    else:
+        return ' '.join(split)
 
-def get_urls(search, num=1000, min_len= 10):
+def get_urls(search, num=1000, min_doc_count= 10):
     agg_name = 'purin'
-    search.aggs.bucket(agg_name, 'terms', field='source.keyword', size=num)
-    result = search[0:0].execute().to_dict()
+    search.aggs.bucket(agg_name, 'terms', field='source', size=num)
+    result = search.execute().to_dict()
     aggs = [
             {'url': a['key'], 'size': a['doc_count']} for a in 
             result['aggregations'][agg_name]['buckets']
-            if a['doc_count'] >= min_len
+            if a['doc_count'] >= min_doc_count
             ]
     return aggs
-
-
-def naiv_tari_test_clan_split(urls, min_per, max_per):
-    total = sum([el['size'] for el in urls])
-    print('sources = ' + str(len(urls)))
-    print('max = ' + str(urls[0]['size']) + ' '
-          'min = ' + str(urls[-1]['size']))
-    print('total = ' + str(total))
-    for L in reversed(range(2, int(len(urls)/2))):
-        for subset in itertools.combinations(urls, L):
-            sub_total = sum([el['size'] for el in subset]) / total
-            if min_per <= sub_total <= max_per:
-                train = [n['url'] for n in subset]
-                all_names = [n['url'] for n in urls]
-                test = list(set(all_names) - set(train))
-                return train, test
-            if min_per <= (1 - sub_total) <= max_per:
-                test = [n['url'] for n in subset]
-                all_names = [n['url'] for n in urls]
-                train = list(set(all_names) - set(test))
-                return train, test
 
 
 def smart_subset_select(urls, min_per, max_per, seed):
@@ -93,35 +71,90 @@ def smart_subset_select(urls, min_per, max_per, seed):
     return train, test
 
 
-def train_test_split(min_per, max_per, labels=range(1,6), seed=0, min_len=500, max_len=10000, trim = 3, encode=None, cons_pseu='cons'):
+def site_count(labels=range(1,6), min_len=500, max_len=10000, min_doc_count=10, label='cons'):
+
+    out_dict = {"data": dict(),
+            "charac": {
+                "min_len": min_len,
+                "max_len": max_len,
+                "min_doc_count": min_doc_count,
+                "label": label,
+                "labels": labels
+                }}
+
+    for i in labels:
+
+        print(label, i)
+
+        search = News().search().filter('range', length={'gte': min_len, 'lte': max_len})
+        if label == 'cons':
+            search = search.filter('term', cons=i)
+        elif label == 'pseudo':
+            search = search.filter('term', pseudo=i)
+        elif label == "factual":
+            search = search.filter('term', factual=i)
+        elif label == "bias":
+            search = search.filter('term', bias=i)
+
+        urls = get_urls(search, min_doc_count=min_doc_count)
+
+        out_dict["data"][i] = urls
+
+    return out_dict
+
+def cross_validaton_split(site_count_dict, split_size=5, site_threshold=1):
+    site_data = site_count_dict["data"]
+    min_len = site_count_dict["charac"]["min_len"]
+    max_len = site_count_dict["charac"]["max_len"]
+    using_label = site_count_dict["charac"]["label"]
+
+    split = defaultdict(dict)
+
+    for label in site_data:
+        urls = copy.deepcopy(site_data[label])
+        total_docs = sum([el['size'] for el in urls])
+        docs_per_part = total_docs//split_size
+        sites_per_part = len(urls)/split_size
+        for i in range(split_size-1):
+            print(label, i)
+            shuffle(urls)
+            g = subset_sum(urls, docs_per_part, docs_per_part)
+            doc_slice = next(g)
+            while np.linalg.norm(len(doc_slice) - sites_per_part) > site_threshold:
+                shuffle(urls)
+                g = subset_sum(urls, docs_per_part, docs_per_part)
+                doc_slice = next(g)
+            for l in doc_slice:
+                urls.pop(urls.index(l))
+            split[label][i] = doc_slice
+        split[label][split_size-1] = urls
+    return split
+
+    
+def train_test_split(site_count_dict, min_per, max_per, seed=0, trim = 0, encode=None):
+
+    site_data = site_count_dict["data"]
+    min_len = site_count_dict["charac"]["min_len"]
+    max_len = site_count_dict["charac"]["max_len"]
+    using_label = site_count_dict["charac"]["label"]
 
     train_sites = list()
     test_sites = list()
 
-    for i in labels:
+    for label in site_data:
 
-        print(cons_pseu, i)
+        urls = site_data[label]
 
-        search = News().search().filter('range', length={'gte': min_len, 'lte': max_len})
-        if cons_pseu == 'cons':
-            search = search.filter('term', cons=i)
-        elif cons_pseu == 'pseudo':
-            search = search.filter('term', pseudo=i)
-
-        urls = get_urls(search)
-
-        #train, test = naiv_tari_test_clan_split(urls, min_per, max_per)
         train, test = smart_subset_select(urls, min_per, max_per, seed)
 
         train_sites.extend(train)
         test_sites.extend(test)
 
+    train_gen = News().search().filter('range', length={'gte': min_len, 'lte': max_len}).filter('terms', source=train_sites).scan()
+    test_gen = News().search().filter('range', length={'gte': min_len, 'lte': max_len}).filter('terms', source=test_sites).scan()
 
-    train_gen = News().search().filter('range', length={'gte': min_len, 'lte': max_len}).filter('terms', url__keyword=train_sites).scan()
-    test_gen = News().search().filter('range', length={'gte': min_len, 'lte': max_len}).filter('terms', url__keyword=test_sites).scan()
-
-    x_train, y_train = generate_dataset(train_gen, cons_pseu, trim, encode)
-    x_test, y_test = generate_dataset(test_gen, cons_pseu, trim, encode)
+    x_train, y_train = generate_dataset(train_gen, using_label, trim, encode)
+    x_test, y_test = generate_dataset(test_gen, using_label, trim, encode)
 
     return x_train, y_train, x_test, y_test
 
@@ -137,7 +170,7 @@ def subset_sum(numbers, target_min, target_max, partial=[], partial_sum=0):
         yield from subset_sum(remaining, target_min, target_max, partial + [n], partial_sum + n['size'])
 
 
-def make_df(x, y, x_name='x', y_name='y'):
+def make_df(x, y, x_name='text', y_name='label'):
     from pandas import DataFrame
     d = {y_name: list(y), x_name: list(x)}
     df = DataFrame(data=d)
