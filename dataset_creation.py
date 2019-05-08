@@ -2,6 +2,7 @@ import numpy as np
 from collections import defaultdict
 from random import shuffle
 import copy
+import csv
 
 import pandas as pd
 from create_corpus.news.ES.indexes import NewsTest as News
@@ -166,10 +167,20 @@ def save_to_csv(gens, base_name):
     for split in gens:
         f = open("{}{}.csv".format(base_name, split), "w", newline="")
         csvwriter = csv.writer(f)
-        for n in tqdm(gens[split]):
+        for n in gens[split]:
             csvwriter.writerow([
             n.factual.replace("\xa0", " "),
             n.content.replace("\n", " __new__linw__ ")])
+
+
+def load_dfs(name):
+    return [pd.read_csv("{}{}.csv".format(name, i), names=["label", "text"]) for i in range(5)]
+
+
+def cros_valid_select(dfs, index):
+    train = pd.concat([x for i,x in enumerate(dfs) if i!=index], sort=False)
+    test = dfs[index]
+    return train, test
 
 
 def make_df(x, y, x_name='text', y_name='label'):
