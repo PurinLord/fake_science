@@ -5,7 +5,7 @@ import copy
 import csv
 
 import pandas as pd
-from create_corpus.news.ES.indexes import NewsTest as News
+from create_corpus.news.ES.indexes import News#Test as News
 from elasticsearch_dsl.connections import connections
 
 connections.create_connection(hosts='localhost:9200')
@@ -34,6 +34,18 @@ def site_count(labels=range(1,6), min_len=500, max_len=10000, min_doc_count=10, 
             search = search.filter('term', factual=i)
         elif label == "bias":
             search = search.filter('term', bias=i)
+        elif label == "science":
+            if i == "con-science":
+                search = search.filter('bool', must_not=[
+                    {"bool": {"must": [
+                        {"term": {"pseudo": {"value": 1}}},
+                        {"term": {"cons": {"value": 1}}}
+                        ]}}])
+            if i == "pro-science":
+                search = search.filter('bool', must=[
+                    {"term": {"pseudo": {"value": 1}}},
+                    {"term": {"cons": {"value": 1}}}
+                    ])
 
         urls = get_urls(search, min_doc_count=min_doc_count)
 
@@ -163,13 +175,19 @@ def split_gens(split, min_len, max_len):
     return gen_split
 
 
-def save_to_csv(gens, base_name):
+def save_to_csv(gens, label , base_name):
     for split in gens:
         f = open("{}{}.csv".format(base_name, split), "w", newline="")
         csvwriter = csv.writer(f)
         for n in gens[split]:
+            if label == "science":
+                l = "pro-science" \
+                        if n.cons == 1 and n.pseudo == 1 \
+                        else "con-science"
+            else:
+                l = n.to_dict()[label].replace("\xa1", " ")
             csvwriter.writerow([
-            n.factual.replace("\xa0", " "),
+            l,
             n.content.replace("\n", " __new__linw__ ")])
 
 
